@@ -36,7 +36,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final items = [
+  final List<Item> items = [
     Item('Milk'),
     Item('Bread'),
     Item('Rice'),
@@ -45,7 +45,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final controller = TextEditingController();
 
-  // PART 3: Add a new item or increase an existing quantity
+  // PART 5: Store the selected filter
+  String filter = 'All';
+
+  // PART 3: Add an item or increase existing quantity
   void addItem() {
     final text = controller.text.trim();
 
@@ -73,7 +76,8 @@ class _HomeScreenState extends State<HomeScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${existingItem.name} is already on the list: now ×${existingItem.quantity}',
+            '${existingItem.name} is already on the list: '
+            'now ×${existingItem.quantity}',
           ),
         ),
       );
@@ -91,22 +95,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // PART 4: Delete an item with Undo
   void deleteItem(Item item) {
-    // Remember the original position
     final originalIndex = items.indexOf(item);
 
     if (originalIndex == -1) return;
 
-    // Remove the item
     setState(() {
       items.remove(item);
     });
 
     final messenger = ScaffoldMessenger.of(context);
-
-    // Prevent old messages from queuing
     messenger.hideCurrentSnackBar();
 
-    // Show the deleted item with an Undo button
     messenger.showSnackBar(
       SnackBar(
         content: Text('${item.name} removed'),
@@ -114,14 +113,10 @@ class _HomeScreenState extends State<HomeScreen> {
         action: SnackBarAction(
           label: 'Undo',
           onPressed: () {
-            // Prevent accidentally restoring the same item twice
             if (items.contains(item)) return;
 
             setState(() {
-              // Keep the index within the current list size
               final position = originalIndex.clamp(0, items.length);
-
-              // Restore the same Item object
               items.insert(position, item);
             });
           },
@@ -144,7 +139,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  // Decrease quantity, minimum is 1
+  // Decrease quantity, minimum 1
   void decreaseQuantity(Item item) {
     if (item.quantity > 1) {
       setState(() {
@@ -160,6 +155,23 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  // PART 5: Build the displayed list based on the filter
+  List<Item> getShownItems() {
+    if (filter == 'To buy') {
+      return items.where((item) => !item.bought).toList();
+    }
+
+    if (filter == 'Bought') {
+      return items.where((item) => item.bought).toList();
+    }
+
+    // All: unbought items first, bought items last
+    return [
+      ...items.where((item) => !item.bought),
+      ...items.where((item) => item.bought),
+    ];
+  }
+
   @override
   void dispose() {
     controller.dispose();
@@ -171,11 +183,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final itemsLeft =
         items.where((item) => !item.bought).length;
 
-    // Show unbought items first, bought items at the bottom
-    final sortedItems = [
-      ...items.where((item) => !item.bought),
-      ...items.where((item) => item.bought),
-    ];
+    // Display list independent from original items order
+    final shown = getShownItems();
 
     return Scaffold(
       appBar: AppBar(
@@ -199,9 +208,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Expanded(
                   child: TextField(
                     controller: controller,
-                    onSubmitted: (value) {
-                      addItem();
-                    },
+                    onSubmitted: (_) => addItem(),
                     decoration: const InputDecoration(
                       hintText: 'Enter an item',
                       border: OutlineInputBorder(),
@@ -219,6 +226,44 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
 
+          // PART 5: Filter buttons
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Wrap(
+              spacing: 10,
+              children: [
+                ChoiceChip(
+                  label: const Text('All'),
+                  selected: filter == 'All',
+                  onSelected: (_) {
+                    setState(() {
+                      filter = 'All';
+                    });
+                  },
+                ),
+                ChoiceChip(
+                  label: const Text('To buy'),
+                  selected: filter == 'To buy',
+                  onSelected: (_) {
+                    setState(() {
+                      filter = 'To buy';
+                    });
+                  },
+                ),
+                ChoiceChip(
+                  label: const Text('Bought'),
+                  selected: filter == 'Bought',
+                  onSelected: (_) {
+                    setState(() {
+                      filter = 'Bought';
+                    });
+                  },
+                ),
+              ],
+            ),
+          ),
+
+          // PARTS 1 AND 5: Empty list and filtered list display
           Expanded(
             child: items.isEmpty
                 ? const Center(
@@ -227,71 +272,78 @@ class _HomeScreenState extends State<HomeScreen> {
                       style: TextStyle(fontSize: 20),
                     ),
                   )
-                : ListView.builder(
-                    itemCount: sortedItems.length,
-                    itemBuilder: (context, index) {
-                      // Use the actual item, not its displayed index
-                      final item = sortedItems[index];
+                : shown.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'Nothing here',
+                          style: TextStyle(fontSize: 20),
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: shown.length,
+                        itemBuilder: (context, index) {
+                          // Important: use the actual item object
+                          final item = shown[index];
 
-                      return ListTile(
-                        onTap: () {
-                          toggleBought(item);
+                          return ListTile(
+                            onTap: () {
+                              toggleBought(item);
+                            },
+
+                            leading: Icon(
+                              item.bought
+                                  ? Icons.check_circle
+                                  : Icons.shopping_basket,
+                              color: item.bought
+                                  ? Colors.green
+                                  : null,
+                            ),
+
+                            title: Text(
+                              item.name,
+                              style: TextStyle(
+                                decoration: item.bought
+                                    ? TextDecoration.lineThrough
+                                    : TextDecoration.none,
+                              ),
+                            ),
+
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.remove),
+                                  tooltip: 'Decrease quantity',
+                                  onPressed: () {
+                                    decreaseQuantity(item);
+                                  },
+                                ),
+
+                                Text(
+                                  '${item.quantity}',
+                                  style: const TextStyle(fontSize: 16),
+                                ),
+
+                                IconButton(
+                                  icon: const Icon(Icons.add),
+                                  tooltip: 'Increase quantity',
+                                  onPressed: () {
+                                    increaseQuantity(item);
+                                  },
+                                ),
+
+                                IconButton(
+                                  icon: const Icon(Icons.delete),
+                                  tooltip: 'Delete item',
+                                  onPressed: () {
+                                    deleteItem(item);
+                                  },
+                                ),
+                              ],
+                            ),
+                          );
                         },
-
-                        leading: Icon(
-                          item.bought
-                              ? Icons.check_circle
-                              : Icons.shopping_basket,
-                          color: item.bought
-                              ? Colors.green
-                              : null,
-                        ),
-
-                        title: Text(
-                          item.name,
-                          style: TextStyle(
-                            decoration: item.bought
-                                ? TextDecoration.lineThrough
-                                : TextDecoration.none,
-                          ),
-                        ),
-
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.remove),
-                              tooltip: 'Decrease quantity',
-                              onPressed: () {
-                                decreaseQuantity(item);
-                              },
-                            ),
-
-                            Text(
-                              '${item.quantity}',
-                              style: const TextStyle(fontSize: 16),
-                            ),
-
-                            IconButton(
-                              icon: const Icon(Icons.add),
-                              tooltip: 'Increase quantity',
-                              onPressed: () {
-                                increaseQuantity(item);
-                              },
-                            ),
-
-                            IconButton(
-                              icon: const Icon(Icons.delete),
-                              tooltip: 'Delete item',
-                              onPressed: () {
-                                deleteItem(item);
-                              },
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                      ),
           ),
         ],
       ),
