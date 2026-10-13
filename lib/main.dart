@@ -103,6 +103,10 @@ void dispose() {
 @override
 Widget build(BuildContext context) {
   final itemsLeft = items.where((item) => !item.bought).length;
+  final sortedItems = [
+    ...items.where((item) => !item.bought),
+    ...items.where((item) => item.bought),
+  ];
   return Scaffold(
     appBar: AppBar(
       title: Text('${widget.title} ($itemsLeft left)'),
@@ -155,69 +159,76 @@ Widget build(BuildContext context) {
               : ListView.builder(
             itemCount: items.length,
             itemBuilder: (context, index) {
-              return ListTile(
-                onTap: () {
-                  setState(() {
-                    items[index].bought = !items[index].bought;
-                  });
-                },
-                leading: Icon(
-                  items[index].bought
-                      ? Icons.check_circle
-                      : Icons.shopping_basket,
+              final item = sortedItems[index];
+            return ListTile(
+              // Mark as bought or not bought
+              onTap: () {
+                setState(() {
+                  item.bought = !item.bought;
+                });
+              },
+
+              leading: Icon(
+                item.bought
+                    ? Icons.check_circle
+                    : Icons.shopping_basket,
+                color: item.bought ? Colors.green : null,
+              ),
+
+              title: Text(
+                item.name,
+                style: TextStyle(
+                  decoration: item.bought
+                      ? TextDecoration.lineThrough
+                      : TextDecoration.none,
                 ),
-                title: Text(
-                  items[index].name,
-                  style: TextStyle(
-                    decoration: items[index].bought
-                        ? TextDecoration.lineThrough
-                        : TextDecoration.none,
+              ),
+
+              // Quantity and delete controls
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.remove),
+                    tooltip: 'Decrease quantity',
+                    onPressed: () {
+                      decreaseQuantity(item);
+                    },
                   ),
-                ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.remove),
-                      tooltip: 'Decrease quantity',
-                      onPressed: () {
-                        decreaseQuantity(items[index]);
-                      },
-                    ),
 
-                    Text(
-                      '${items[index].quantity}',
-                      style: const TextStyle(fontSize: 16),
-                    ),
+                  Text(
+                    '${item.quantity}',
+                    style: const TextStyle(fontSize: 16),
+                  ),
 
-                    IconButton(
-                      icon: const Icon(Icons.add),
-                      tooltip: 'Increase quantity',
-                      onPressed: () {
-                        increaseQuantity(items[index]);
-                      },
-                    ),
+                  IconButton(
+                    icon: const Icon(Icons.add),
+                    tooltip: 'Increase quantity',
+                    onPressed: () {
+                      increaseQuantity(item);
+                    },
+                  ),
 
-                    IconButton(
-                      icon: const Icon(Icons.delete),
-                      tooltip: 'Delete item',
-                      onPressed: () {
-                        final removedItem = items[index].name;
+                  IconButton(
+                    icon: const Icon(Icons.delete),
+                    tooltip: 'Delete item',
+                    onPressed: () {
+                      final removedItem = item.name;
 
-                        setState(() {
-                          items.removeAt(index);
-                        });
+                      setState(() {
+                        items.remove(item);
+                      });
 
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('$removedItem removed'),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('$removedItem removed'),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            );
             },
 
           ),
