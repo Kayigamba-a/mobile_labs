@@ -6,6 +6,7 @@ class Item {
 
   final String name;
   bool bought = false;
+  int quantity = 1;
 }
 void main() {
   runApp(const ShoppingApp());
@@ -74,6 +75,21 @@ void addItem() {
   // Clear the text field
   controller.clear();
 }
+
+void increaseQuantity(Item item) {
+  setState(() {
+    item.quantity++;
+  });
+}
+
+void decreaseQuantity(Item item) {
+  if (item.quantity > 1) {
+    setState(() {
+      item.quantity--;
+    });
+  }
+}
+
 
 @override
 void dispose() {
@@ -158,19 +174,48 @@ Widget build(BuildContext context) {
                         : TextDecoration.none,
                   ),
                 ),
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete),
-                  onPressed: () {
-                    final removedItem = items[index].name;
-                    setState(() {
-                      items.removeAt(index);
-                    });
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('$removedItem removed'),
-                      ),
-                    );
-                  },
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.remove),
+                      tooltip: 'Decrease quantity',
+                      onPressed: () {
+                        decreaseQuantity(items[index]);
+                      },
+                    ),
+
+                    Text(
+                      '${items[index].quantity}',
+                      style: const TextStyle(fontSize: 16),
+                    ),
+
+                    IconButton(
+                      icon: const Icon(Icons.add),
+                      tooltip: 'Increase quantity',
+                      onPressed: () {
+                        increaseQuantity(items[index]);
+                      },
+                    ),
+
+                    IconButton(
+                      icon: const Icon(Icons.delete),
+                      tooltip: 'Delete item',
+                      onPressed: () {
+                        final removedItem = items[index].name;
+
+                        setState(() {
+                          items.removeAt(index);
+                        });
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('$removedItem removed'),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
               );
             },
