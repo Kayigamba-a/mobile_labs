@@ -1,10 +1,19 @@
 
 import 'package:flutter/material.dart';
 
+// MODEL
 class Item {
-  Item(this.name);
+  Item(
+    this.name, {
+    this.note = '',
+    this.category = 'Food',
+  });
 
-  final String name;
+  // Name is no longer final because it can be edited.
+  String name;
+  String note;
+  String category;
+
   bool bought = false;
   int quantity = 1;
 }
@@ -13,6 +22,7 @@ void main() {
   runApp(const ShoppingApp());
 }
 
+// MAIN APPLICATION
 class ShoppingApp extends StatelessWidget {
   const ShoppingApp({super.key});
 
@@ -26,6 +36,7 @@ class ShoppingApp extends StatelessWidget {
   }
 }
 
+// HOME SCREEN
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.title});
 
@@ -45,24 +56,32 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final controller = TextEditingController();
 
-  // PART 5: Store the selected filter
+  // PART 5: Current filter
   String filter = 'All';
 
-  // PART 3: Add an item or increase existing quantity
+  // Show a SnackBar without queuing old messages
+  void showMessage(String message) {
+    final messenger = ScaffoldMessenger.of(context);
+
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  // PART 3: Add new items or increase existing quantities
   void addItem() {
     final text = controller.text.trim();
 
     if (text.isEmpty) {
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Type an item first')),
-      );
+      showMessage('Type an item first');
       return;
     }
 
     final matches = items.where(
       (item) =>
-          item.name.toLowerCase() == text.toLowerCase(),
+          item.name.trim().toLowerCase() ==
+          text.toLowerCase(),
     );
 
     if (matches.isNotEmpty) {
@@ -72,14 +91,9 @@ class _HomeScreenState extends State<HomeScreen> {
         existingItem.quantity++;
       });
 
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${existingItem.name} is already on the list: '
-            'now ×${existingItem.quantity}',
-          ),
-        ),
+      showMessage(
+        '${existingItem.name} is already on the list: '
+        'now ×${existingItem.quantity}',
       );
 
       controller.clear();
@@ -116,7 +130,9 @@ class _HomeScreenState extends State<HomeScreen> {
             if (items.contains(item)) return;
 
             setState(() {
-              final position = originalIndex.clamp(0, items.length);
+              final position =
+                  originalIndex.clamp(0, items.length);
+
               items.insert(position, item);
             });
           },
@@ -125,21 +141,21 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Mark or unmark an item as bought
+  // Mark item as bought or not bought
   void toggleBought(Item item) {
     setState(() {
       item.bought = !item.bought;
     });
   }
 
-  // Increase quantity
+  // PART 2: Increase quantity
   void increaseQuantity(Item item) {
     setState(() {
       item.quantity++;
     });
   }
 
-  // Decrease quantity, minimum 1
+  // PART 2: Decrease quantity
   void decreaseQuantity(Item item) {
     if (item.quantity > 1) {
       setState(() {
@@ -148,14 +164,14 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Remove all bought items
+  // Clear bought items
   void clearBoughtItems() {
     setState(() {
       items.removeWhere((item) => item.bought);
     });
   }
 
-  // PART 5: Build the displayed list based on the filter
+  // PART 5: Filter shopping items
   List<Item> getShownItems() {
     if (filter == 'To buy') {
       return items.where((item) => !item.bought).toList();
@@ -165,11 +181,29 @@ class _HomeScreenState extends State<HomeScreen> {
       return items.where((item) => item.bought).toList();
     }
 
-    // All: unbought items first, bought items last
+    // All: Unbought items first, bought items last
     return [
       ...items.where((item) => !item.bought),
       ...items.where((item) => item.bought),
     ];
+  }
+
+  // PART 6: Open the Item Details screen
+  Future<void> openDetails(Item item) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DetailsScreen(
+          item: item,
+          items: items,
+        ),
+      ),
+    );
+
+    // Update the shopping list after returning
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
@@ -183,7 +217,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final itemsLeft =
         items.where((item) => !item.bought).length;
 
-    // Display list independent from original items order
     final shown = getShownItems();
 
     return Scaffold(
@@ -200,7 +233,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       body: Column(
         children: [
-          // Input field and Add button
+          // Item input
           Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -215,9 +248,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ),
-
                 const SizedBox(width: 10),
-
                 FilledButton(
                   onPressed: addItem,
                   child: const Text('Add'),
@@ -226,9 +257,11 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
 
-          // PART 5: Filter buttons
+          // PART 5: Filters
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16,
+            ),
             child: Wrap(
               spacing: 10,
               children: [
@@ -263,7 +296,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
 
-          // PARTS 1 AND 5: Empty list and filtered list display
+          // Shopping list
           Expanded(
             child: items.isEmpty
                 ? const Center(
@@ -282,13 +315,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     : ListView.builder(
                         itemCount: shown.length,
                         itemBuilder: (context, index) {
-                          // Important: use the actual item object
                           final item = shown[index];
 
                           return ListTile(
-                            onTap: () {
-                              toggleBought(item);
-                            },
+                            // Tap to mark as bought
+                            onTap: () => toggleBought(item),
+
+                            // PART 6: Long-press for details
+                            onLongPress: () => openDetails(item),
 
                             leading: Icon(
                               item.bought
@@ -308,6 +342,14 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                             ),
 
+                            // PART 6: Category and note
+                            subtitle: Text(
+                              item.note.isEmpty
+                                  ? item.category
+                                  : '${item.category} · ${item.note}',
+                            ),
+
+                            // Quantity and delete controls
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -318,12 +360,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                     decreaseQuantity(item);
                                   },
                                 ),
-
                                 Text(
                                   '${item.quantity}',
-                                  style: const TextStyle(fontSize: 16),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                  ),
                                 ),
-
                                 IconButton(
                                   icon: const Icon(Icons.add),
                                   tooltip: 'Increase quantity',
@@ -331,7 +373,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                     increaseQuantity(item);
                                   },
                                 ),
-
                                 IconButton(
                                   icon: const Icon(Icons.delete),
                                   tooltip: 'Delete item',
@@ -346,6 +387,196 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// PART 6: SECOND SCREEN — ITEM DETAILS
+class DetailsScreen extends StatefulWidget {
+  const DetailsScreen({
+    super.key,
+    required this.item,
+    required this.items,
+  });
+
+  final Item item;
+  final List<Item> items;
+
+  @override
+  State<DetailsScreen> createState() => _DetailsScreenState();
+}
+
+class _DetailsScreenState extends State<DetailsScreen> {
+  final nameController = TextEditingController();
+  final noteController = TextEditingController();
+
+  String category = 'Food';
+
+  // Fill text fields when the screen opens
+  @override
+  void initState() {
+    super.initState();
+
+    nameController.text = widget.item.name;
+    noteController.text = widget.item.note;
+    category = widget.item.category;
+  }
+
+  // Save updated item information
+  void saveDetails() {
+    final newName = nameController.text.trim();
+    final newNote = noteController.text.trim();
+
+    // Reject empty names
+    if (newName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Item name cannot be empty'),
+        ),
+      );
+      return;
+    }
+
+    // Prevent duplicate item names
+    final duplicate = widget.items.any(
+      (item) =>
+          !identical(item, widget.item) &&
+          item.name.trim().toLowerCase() ==
+              newName.toLowerCase(),
+    );
+
+    if (duplicate) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('An item with this name already exists'),
+        ),
+      );
+      return;
+    }
+
+    // Apply changes only when Save is pressed
+    widget.item.name = newName;
+    widget.item.note = newNote;
+    widget.item.category = category;
+
+    Navigator.pop(context);
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    noteController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Item details'),
+      ),
+
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Item name',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                hintText: 'Enter item name',
+                border: OutlineInputBorder(),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            const Text(
+              'Note',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            TextField(
+              controller: noteController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                hintText: 'Example: the 1 litre bottle',
+                border: OutlineInputBorder(),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            const Text(
+              'Category',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            Wrap(
+              spacing: 10,
+              children: [
+                ChoiceChip(
+                  label: const Text('Food'),
+                  selected: category == 'Food',
+                  onSelected: (_) {
+                    setState(() {
+                      category = 'Food';
+                    });
+                  },
+                ),
+                ChoiceChip(
+                  label: const Text('Drinks'),
+                  selected: category == 'Drinks',
+                  onSelected: (_) {
+                    setState(() {
+                      category = 'Drinks';
+                    });
+                  },
+                ),
+                ChoiceChip(
+                  label: const Text('Home'),
+                  selected: category == 'Home',
+                  onSelected: (_) {
+                    setState(() {
+                      category = 'Home';
+                    });
+                  },
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 32),
+
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: saveDetails,
+                child: const Text('Save'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
