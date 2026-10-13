@@ -45,26 +45,23 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final controller = TextEditingController();
 
-  // PART 3: Add a new item or increase existing quantity
+  // PART 3: Add a new item or increase an existing quantity
   void addItem() {
     final text = controller.text.trim();
 
     if (text.isEmpty) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Type an item first'),
-        ),
+        const SnackBar(content: Text('Type an item first')),
       );
       return;
     }
 
-    // Search for an existing item, ignoring capitalization
     final matches = items.where(
       (item) =>
           item.name.toLowerCase() == text.toLowerCase(),
     );
 
-    // If the item exists, increase its quantity
     if (matches.isNotEmpty) {
       final existingItem = matches.first;
 
@@ -73,7 +70,6 @@ class _HomeScreenState extends State<HomeScreen> {
       });
 
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -86,7 +82,6 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    // Otherwise, create a new item
     setState(() {
       items.add(Item(text));
     });
@@ -94,15 +89,43 @@ class _HomeScreenState extends State<HomeScreen> {
     controller.clear();
   }
 
-  // Delete an individual item
+  // PART 4: Delete an item with Undo
   void deleteItem(Item item) {
+    // Remember the original position
+    final originalIndex = items.indexOf(item);
+
+    if (originalIndex == -1) return;
+
+    // Remove the item
     setState(() {
       items.remove(item);
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    final messenger = ScaffoldMessenger.of(context);
+
+    // Prevent old messages from queuing
+    messenger.hideCurrentSnackBar();
+
+    // Show the deleted item with an Undo button
+    messenger.showSnackBar(
       SnackBar(
         content: Text('${item.name} removed'),
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: 'Undo',
+          onPressed: () {
+            // Prevent accidentally restoring the same item twice
+            if (items.contains(item)) return;
+
+            setState(() {
+              // Keep the index within the current list size
+              final position = originalIndex.clamp(0, items.length);
+
+              // Restore the same Item object
+              items.insert(position, item);
+            });
+          },
+        ),
       ),
     );
   }
@@ -130,7 +153,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Clear all bought items
+  // Remove all bought items
   void clearBoughtItems() {
     setState(() {
       items.removeWhere((item) => item.bought);
@@ -148,7 +171,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final itemsLeft =
         items.where((item) => !item.bought).length;
 
-    // Unbought items first, bought items at the bottom
+    // Show unbought items first, bought items at the bottom
     final sortedItems = [
       ...items.where((item) => !item.bought),
       ...items.where((item) => item.bought),
@@ -207,6 +230,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 : ListView.builder(
                     itemCount: sortedItems.length,
                     itemBuilder: (context, index) {
+                      // Use the actual item, not its displayed index
                       final item = sortedItems[index];
 
                       return ListTile(
@@ -245,9 +269,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                             Text(
                               '${item.quantity}',
-                              style: const TextStyle(
-                                fontSize: 16,
-                              ),
+                              style: const TextStyle(fontSize: 16),
                             ),
 
                             IconButton(
